@@ -1,0 +1,110 @@
+---
+title: "ACS-Age-Durham-Analysis"
+author: "Uma Bhat"
+date: "2024-04-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+library(tidycensus)
+library(tidyverse)
+library(sf)
+census_api_key("69d27256e0c33b7bdad023e1681d5bcfd57d8b09")
+```
+
+
+```{r}
+#Selecting relevant variables
+variables = c(age85plus="S0101_C01_019", age80_84="S0101_C01_018",age75_79="S0101_C01_017",age70_74="S0101_C01_016",
+            age65_69="S0101_C01_015",age60_64="S0101_C01_014",age55_59="S0101_C01_013",age50_54="S0101_C01_012",
+            age45_49="S0101_C01_011",age40_44="S0101_C01_010",age35_39="S0101_C01_009",age30_34="S0101_C01_008",
+            age25_29="S0101_C01_007",age20_24="S0101_C01_006",age15_19="S0101_C01_005",age10_14="S0101_C01_004",
+            age5_9="S0101_C01_003",newborn_4="S0101_C01_002")
+
+years = c(2017, 2018, 2019, 2021, 2022)
+
+#Pulling age data from the 1-year ACS surveys for each relevant year
+durham_age_all <- map_dfr(
+  years,
+  ~ get_acs(
+      geography = "county",
+      variables = variables,
+      state = "NC",
+      county = "Durham County",
+      year = .x,
+      survey = "acs1",
+      geometry = FALSE
+      ),
+  .id = "year"  # when combining results, add id var (name of list item)
+  ) %>%
+  select(-moe) %>%  # shhhh
+  arrange(variable, NAME) %>%
+  print()
+
+#Cleaning data 
+durham_age_all = durham_age_all %>% mutate(year = recode(year, "1" = "2017",  "2" = "2018", "3" = "2019", "4" = "2021", "5" = "2022"))
+durham_age_all = durham_age_all %>% mutate(
+  year = as.numeric(year),
+  estimate = as.numeric(estimate)
+)
+
+#Cleaned data frame
+durham_age_all
+```
+```{r}
+#Finding age range population as a percentage of total population for each year
+percent_calculation <- function(durham_age_all) {
+  percent <- ifelse(durham_age_all$year == 2022, durham_age_all$estimate / 332680,
+             ifelse(durham_age_all$year == 2021, durham_age_all$estimate / 326126,
+             ifelse(durham_age_all$year == 2019, durham_age_all$estimate / 321488,
+             ifelse(durham_age_all$year == 2018, durham_age_all$estimate / 316739,
+             ifelse(durham_age_all$year == 2017, durham_age_all$estimate / 311640, NA)))))
+
+  return(percent)
+}
+
+durham_age_all = durham_age_all %>%
+  mutate(pct = percent_calculation(durham_age_all)*100)
+
+durham_age_all
+```
+
+```{r}
+#I had help from ChatGPT in this chunk of the code.
+
+# Define a function to modify the "variable" column
+modify_variable <- function(variable) {
+  # Group "age65_69" and "age70_74" into "age 65_74"
+  ifelse(grepl("age65_69|age70_74", variable), "age 65_74",
+         # Group "age75_79" and "age80_84" into "age 75_84"
+         ifelse(grepl("age75_79|age80_84", variable), "age 75_84",
+                # Leave other variables unchanged
+                variable))
+}
+
+# Apply the modify_variable function to the "variable" column
+durham_age_all_fix <- mutate(durham_age_all, variable = modify_variable(variable))
+
+# Group by "year" and the modified "variable", and summarize the estimates
+collapsed_data <- durham_age_all_fix %>%
+  group_by(year, variable) %>%
+  summarize(total_estimate = sum(estimate), total_percent = sum(pct))
+
+# View the resulting collapsed data
+print(collapsed_data)
+```
+
+```{r}
+ggplot(data = collapsed_data) +
+  geom_line(mapping = aes(x=year, y=total_percent, color=variable)) +
+  labs(x="Year", y="Percent of Total Population", title = "Share of Durham County residents by age range") + 
+  theme_minimal()
+
+ggplot(data = collapsed_data) +
+  geom_line(mapping = aes(x=year, y=total_percent, color=variable)) +
+  labs(x="Year", y="Percent of Total Population", title = "Share of Durham County residents by age range") + 
+  theme_minimal()
+``` 
