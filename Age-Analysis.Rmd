@@ -102,9 +102,4 @@ ggplot(data = collapsed_data) +
   geom_line(mapping = aes(x=year, y=total_percent, color=variable)) +
   labs(x="Year", y="Percent of Total Population", title = "Share of Durham County residents by age range") + 
   theme_minimal()
-
-ggplot(data = collapsed_data) +
-  geom_line(mapping = aes(x=year, y=total_percent, color=variable)) +
-  labs(x="Year", y="Percent of Total Population", title = "Share of Durham County residents by age range") + 
-  theme_minimal()
 ``` 
